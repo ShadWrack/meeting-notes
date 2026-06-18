@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Meeting Notes">
+<meta name="description" content="Record meetings, get AI-powered summaries and action items">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Meeting Notes</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d2e;
+    --surface2: #22263a;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --accent: #6C6FE8;
+    --accent-dim: rgba(108,111,232,0.15);
+    --accent-glow: rgba(108,111,232,0.3);
+    --text: #f0f1f8;
+    --text2: #8b8fa8;
+    --text3: #555870;
+    --red: #E24B4A;
+    --red-dim: rgba(226,75,74,0.15);
+    --green: #3dba7e;
+    --green-dim: rgba(61,186,126,0.12);
+    --radius: 14px;
+    --radius-sm: 8px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  /* ── Layout ── */
+  .app {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: calc(var(--safe-top) + 20px) 20px calc(var(--safe-bottom) + 24px);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .logo svg { width: 18px; height: 18px; fill: white; }
+
+  .wordmark h1 {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--text);
+  }
+
+  .header-actions { display: flex; gap: 8px; }
+
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text2);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .icon-btn:hover { background: var(--surface2); color: var(--text); }
+
+  /* ── Status bar ── */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .rec-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--text3);
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  .rec-dot.recording { background: var(--red); animation: pulse 1.1s ease-in-out infinite; }
+  .rec-dot.done { background: var(--green); }
+
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+  .status-text { font-size: 13px; color: var(--text2); flex: 1; }
+  .status-text strong { color: var(--text); font-weight: 500; }
+
+  .timer {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text3);
+    font-weight: 500;
+  }
+  .timer.running { color: var(--red); }
+
+  /* ── Mic button ── */
+  .mic-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .mic-btn {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+    box-shadow: 0 0 0 0 var(--accent-glow);
+    position: relative;
+  }
+  .mic-btn:active { transform: scale(0.93); }
+  .mic-btn.recording {
+    background: var(--red);
+    box-shadow: 0 0 0 12px var(--red-dim);
+    animation: mic-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%,100% { box-shadow: 0 0 0 8px rgba(226,75,74,0.15); }
+    50% { box-shadow: 0 0 0 20px rgba(226,75,74,0.05); }
+  }
+
+  .mic-btn svg { width: 32px; height: 32px; fill: white; }
+  .mic-btn.recording svg.mic-icon { display: none; }
+  .mic-btn.recording svg.stop-icon { display: block !important; }
+
+  .mic-hint { font-size: 13px; color: var(--text3); }
+
+  /* ── Transcript ── */
+  .transcript-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+
+  .word-count { font-size: 12px; color: var(--text3); }
+
+  .transcript-body {
+    padding: 16px;
+    min-height: 120px;
+    max-height: 220px;
+    overflow-y: auto;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+
+  .transcript-body.empty { color: var(--text3); font-style: italic; font-size: 14px; }
+
+  /* scrollbar */
+  .transcript-body::-webkit-scrollbar { width: 4px; }
+  .transcript-body::-webkit-scrollbar-track { background: transparent; }
+  .transcript-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* ── Analyze button ── */
+  .analyze-btn {
+    width: 100%;
+    padding: 15px;
+    border-radius: var(--radius);
+    border: 1px solid var(--accent);
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .analyze-btn:hover:not(:disabled) { background: rgba(108,111,232,0.25); }
+  .analyze-btn:active:not(:disabled) { transform: scale(0.98); }
+  .analyze-btn:disabled { opacity: 0.35; cursor: default; }
+  .analyze-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+  /* ── Loading ── */
+  .loading-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-label { font-size: 14px; color: var(--text2); }
+
+  /* ── Result cards ── */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text2);
+  }
+
+  .result-label svg { width: 15px; height: 15px; fill: var(--accent); }
+
+  .copy-btn {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text3);
+    cursor: pointer;
+    font-family: inherit;
+    transition: color 0.15s, background 0.15s;
+  }
+  .copy-btn:hover { color: var(--text); background: var(--surface2); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+  .result-body {
+    padding: 16px;
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text);
+  }
+
+  .result-body ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .result-body li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .check-icon {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--green-dim);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .check-icon svg { width: 10px; height: 10px; stroke: var(--green); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── Error ── */
+  .error-card {
+    background: var(--red-dim);
+    border: 1px solid rgba(226,75,74,0.3);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 13px;
+    color: #f08080;
+    line-height: 1.6;
+  }
+
+  /* ── Settings drawer ── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .overlay.open { display: flex; }
+
+  .drawer {
+    width: 100%;
+    max-width: 560px;
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    border-top: 1px solid var(--border2);
+    padding: 20px 20px calc(var(--safe-bottom) + 28px);
+  }
+
+  .drawer-handle {
+    width: 36px; height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+
+  .drawer h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 18px;
+    color: var(--text);
+  }
+
+  .field-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 8px;
+  }
+
+  .api-input {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 14px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .api-input:focus { border-color: var(--accent); }
+  .api-input::placeholder { color: var(--text3); }
+
+  .field-hint {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+  .field-hint a { color: var(--accent); text-decoration: none; }
+
+  .save-btn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 13px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 0.15s;
+  }
+  .save-btn:hover { opacity: 0.88; }
+
+  /* ── No speech recognition notice ── */
+  .notice {
+    background: var(--surface);
+    border: 1px solid rgba(239,159,39,0.3);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 13px;
+    color: #d4a04a;
+    line-height: 1.6;
+  }
+
+  /* ── Responsive tweaks ── */
+  @media (min-width: 600px) {
+    .app { padding-top: 40px; }
+    .mic-btn { width: 88px; height: 88px; }
+    .mic-btn svg { width: 36px; height: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- Header -->
+  <header>
+    <div class="wordmark">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="2" width="13" height="2" rx="1"/>
+          <rect x="3" y="6" width="18" height="2" rx="1"/>
+          <rect x="3" y="10" width="14" height="2" rx="1"/>
+          <circle cx="18" cy="18" r="5"/>
+          <rect x="16.5" y="14" width="3" height="5" rx="1.5" fill="white" style="fill:#0f1117"/>
+          <path d="M14.5 17.5 Q14.5 20.5 18 20.5 Q21.5 20.5 21.5 17.5" stroke="#0f1117" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <rect x="17.2" y="20.5" width="1.6" height="2" rx="0.8" fill="#0f1117" style="fill:#0f1117"/>
+        </svg>
+      </div>
+      <h1>Meeting Notes</h1>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="clearAllBtn" title="New meeting" onclick="clearAll()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14M5 12l7-7 7 7"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" title="Settings" onclick="openSettings()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div class="rec-dot" id="recDot"></div>
+    <div class="status-text" id="statusText">Ready to record</div>
+    <div class="timer" id="timer">0:00</div>
+  </div>
+
+  <!-- Mic button -->
+  <div class="mic-area">
+    <button class="mic-btn" id="micBtn" onclick="toggleRecording()" aria-label="Start recording">
+      <!-- mic icon -->
+      <svg class="mic-icon" viewBox="0 0 24 24">
+        <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4z"/>
+        <path d="M19 10a7 7 0 0 1-14 0"/>
+        <line x1="12" y1="19" x2="12" y2="23" stroke="white" stroke-width="2" fill="none" style="fill:none"/>
+        <line x1="9" y1="23" x2="15" y2="23" stroke="white" stroke-width="2" fill="none" style="fill:none"/>
+      </svg>
+      <!-- stop icon (hidden by default) -->
+      <svg class="stop-icon" viewBox="0 0 24 24" style="display:none">
+        <rect x="6" y="6" width="12" height="12" rx="2"/>
+      </svg>
+    </button>
+    <p class="mic-hint" id="micHint">Tap to start recording</p>
+  </div>
+
+  <!-- Transcript -->
+  <div class="transcript-card">
+    <div class="card-header">
+      <span class="card-label">Transcript</span>
+      <span class="word-count" id="wordCount">0 words</span>
+    </div>
+    <div class="transcript-body empty" id="transcriptBody">Your speech will appear here in real time…</div>
+  </div>
+
+  <!-- Analyze -->
+  <button class="analyze-btn" id="analyzeBtn" onclick="analyzeNotes()" disabled>
+    <svg viewBox="0 0 24 24">
+      <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+      <path d="M2 17l10 5 10-5"/>
+      <path d="M2 12l10 5 10-5"/>
+    </svg>
+    Analyze meeting
+  </button>
+
+  <!-- Results area -->
+  <div id="resultsArea"></div>
+
+</div>
+
+<!-- Settings drawer -->
+<div class="overlay" id="overlay" onclick="closeSettings(event)">
+  <div class="drawer">
+    <div class="drawer-handle"></div>
+    <h2>Settings</h2>
+    <div class="field-label">Anthropic API key</div>
+    <input type="password" class="api-input" id="apiKeyInput" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+    <div class="field-hint">
+      Your key is stored only on this device and never sent anywhere except Anthropic's API.<br>
+      Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+    </div>
+    <button class="save-btn" onclick="saveKey()">Save</button>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+let recognition = null;
+let isRecording = false;
+let fullTranscript = '';
+let interimText = '';
+let timerInterval = null;
+let seconds = 0;
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+// ── Service worker ──────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = String(s % 60).padStart(2,'0');
+  return m + ':' + sec;
+}
+
+function wordCount(t) {
+  return t.trim() ? t.trim().split(/\s+/).length : 0;
+}
+
+function updateWordCount() {
+  const wc = wordCount(fullTranscript);
+  document.getElementById('wordCount').textContent = wc + ' word' + (wc !== 1 ? 's' : '');
+}
+
+// ── Recording ──────────────────────────────────────────────
+function toggleRecording() {
+  if (isRecording) stopRecording();
+  else startRecording();
+}
+
+function startRecording() {
+  if (!SR) {
+    showError('Speech recognition is not supported in this browser. Use Chrome or Edge for best results.');
+    return;
+  }
+  const key = localStorage.getItem('anthropic_api_key');
+  if (!key) {
+    openSettings();
+    return;
+  }
+  clearError();
+
+  recognition = new SR();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (e) => {
+    let interim = '';
+    let newFinal = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) newFinal += t + ' ';
+      else interim += t;
+    }
+    if (newFinal) fullTranscript += newFinal;
+    interimText = interim;
+
+    const box = document.getElementById('transcriptBody');
+    box.classList.remove('empty');
+    box.textContent = fullTranscript + (interim ? interim : '');
+    box.scrollTop = box.scrollHeight;
+    updateWordCount();
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error === 'not-allowed') {
+      showError('Microphone access denied. Please allow microphone access in your browser settings and try again.');
+      stopRecording();
+    } else if (e.error === 'network') {
+      // network errors are transient, ignore
+    } else if (e.error !== 'no-speech') {
+      console.warn('Speech recognition error:', e.error);
+    }
+  };
+
+  recognition.onend = () => {
+    if (isRecording) { try { recognition.start(); } catch(e) {} }
+  };
+
+  try {
+    recognition.start();
+  } catch(e) {
+    showError('Could not start recording: ' + e.message);
+    return;
+  }
+
+  isRecording = true;
+  seconds = 0;
+  timerInterval = setInterval(() => {
+    seconds++;
+    const t = document.getElementById('timer');
+    t.textContent = fmtTime(seconds);
+    t.classList.add('running');
+  }, 1000);
+
+  document.getElementById('recDot').classList.add('recording');
+  document.getElementById('statusText').innerHTML = '<strong>Recording</strong>';
+  document.getElementById('micBtn').classList.add('recording');
+  document.getElementById('micBtn').setAttribute('aria-label', 'Stop recording');
+  document.getElementById('micHint').textContent = 'Tap to stop';
+  document.getElementById('analyzeBtn').disabled = true;
+}
+
+function stopRecording() {
+  isRecording = false;
+  if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
+  clearInterval(timerInterval);
+
+  const dot = document.getElementById('recDot');
+  dot.classList.remove('recording');
+  const hasContent = fullTranscript.trim().length > 0;
+  if (hasContent) dot.classList.add('done');
+
+  document.getElementById('statusText').innerHTML = hasContent
+    ? '<strong>Stopped</strong> — ready to analyze'
+    : 'Ready to record';
+  document.getElementById('micBtn').classList.remove('recording');
+  document.getElementById('micBtn').setAttribute('aria-label', 'Start recording');
+  document.getElementById('micHint').textContent = 'Tap to start recording';
+  document.getElementById('analyzeBtn').disabled = !hasContent;
+
+  const t = document.getElementById('timer');
+  t.classList.remove('running');
+}
+
+// ── Analyze ────────────────────────────────────────────────
+async function analyzeNotes() {
+  const key = localStorage.getItem('anthropic_api_key');
+  if (!key) { openSettings(); return; }
+  if (!fullTranscript.trim()) return;
+
+  const resultsArea = document.getElementById('resultsArea');
+  resultsArea.innerHTML = `
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <span class="loading-label">Analyzing your meeting…</span>
+    </div>`;
+  document.getElementById('analyzeBtn').disabled = true;
+  clearError();
+
+  const prompt = `You are a professional meeting assistant. Analyze the following meeting transcript.
+
+Return ONLY a valid JSON object with exactly two keys:
+- "summary": a clear, concise paragraph (3-5 sentences) covering the main topics and decisions discussed
+- "actionItems": an array of strings. Each string is a specific, actionable task that starts with a verb (e.g. "Schedule follow-up call with Karen by Friday", "Send updated proposal to the team"). Include only real, concrete action items — not vague takeaways.
+
+Transcript:
+${fullTranscript}
+
+Return ONLY valid JSON. No markdown fences, no explanation, no preamble.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'API error ' + res.status);
+    }
+
+    const data = await res.json();
+    const raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    const clean = raw.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+
+    const actions = (parsed.actionItems || []);
+    const actionHtml = actions.length
+      ? actions.map(a => `
+          <li>
+            <span class="check-icon">
+              <svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg>
+            </span>
+            <span>${esc(a)}</span>
+          </li>`).join('')
+      : '<li><span style="color:var(--text3)">No action items identified.</span></li>';
+
+    resultsArea.innerHTML = `
+      <div class="result-card">
+        <div class="result-header">
+          <div class="result-label">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Summary
+          </div>
+          <button class="copy-btn" id="copySummary" onclick="copyText('summaryText', 'copySummary')">Copy</button>
+        </div>
+        <div class="result-body" id="summaryText">${esc(parsed.summary || 'No summary generated.')}</div>
+      </div>
+
+      <div class="result-card">
+        <div class="result-header">
+          <div class="result-label">
+            <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Action items
+          </div>
+          <button class="copy-btn" id="copyActions" onclick="copyText('actionsList', 'copyActions')">Copy</button>
+        </div>
+        <div class="result-body"><ul id="actionsList">${actionHtml}</ul></div>
+      </div>`;
+
+    document.getElementById('analyzeBtn').disabled = false;
+  } catch (err) {
+    resultsArea.innerHTML = '';
+    if (err.message.includes('401') || err.message.includes('auth')) {
+      showError('Invalid API key. Open Settings and check your Anthropic API key.');
+    } else {
+      showError('Analysis failed: ' + err.message);
+    }
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+}
+
+function copyText(elId, btnId) {
+  const el = document.getElementById(elId);
+  const text = el.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(btnId);
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {});
+}
+
+// ── Clear ──────────────────────────────────────────────────
+function clearAll() {
+  stopRecording();
+  fullTranscript = '';
+  interimText = '';
+  seconds = 0;
+  document.getElementById('timer').textContent = '0:00';
+  document.getElementById('timer').classList.remove('running');
+  const box = document.getElementById('transcriptBody');
+  box.textContent = 'Your speech will appear here in real time…';
+  box.classList.add('empty');
+  document.getElementById('wordCount').textContent = '0 words';
+  document.getElementById('resultsArea').innerHTML = '';
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('recDot').classList.remove('recording','done');
+  document.getElementById('statusText').innerHTML = 'Ready to record';
+  clearError();
+}
+
+// ── Settings ───────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('apiKeyInput').value = localStorage.getItem('anthropic_api_key') || '';
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeSettings(e) {
+  if (e.target === document.getElementById('overlay')) {
+    document.getElementById('overlay').classList.remove('open');
+  }
+}
+
+function saveKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (key) {
+    localStorage.setItem('anthropic_api_key', key);
+    document.getElementById('overlay').classList.remove('open');
+  }
+}
+
+// ── Error ──────────────────────────────────────────────────
+function showError(msg) {
+  let el = document.getElementById('errorCard');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'errorCard';
+    el.className = 'error-card';
+    document.getElementById('app').appendChild(el);
+  }
+  el.textContent = msg;
+}
+function clearError() {
+  const el = document.getElementById('errorCard');
+  if (el) el.remove();
+}
+
+// ── On load ────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  if (!localStorage.getItem('anthropic_api_key')) {
+    setTimeout(openSettings, 600);
+  }
+  if (!SR) {
+    const notice = document.createElement('div');
+    notice.className = 'notice';
+    notice.textContent = 'Speech recognition is not available in this browser. For best results, open this app in Chrome or Edge.';
+    document.getElementById('app').insertBefore(notice, document.getElementById('app').children[2]);
+  }
+});
+</script>
+</body>
+</html>
